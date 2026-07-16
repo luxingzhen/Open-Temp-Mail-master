@@ -12,7 +12,7 @@ preview_database_id = "46d67b6b-4a93-46d67b6b-9769-46d67b6b"
 # Environment Variables
 [vars]
 # FORWARD_RULES="[{\"prefix\":\"vip\",\"email\":\"a@example.com\"},{\"prefix\":\"*\",\"email\":\"admin@example.com\"}]"
-MAIL_DOMAIN = "domain.com"
+MAIL_DOMAIN = "jisuysc.com"
 
 # Static Assets (Vite build output)
 [assets]
@@ -25,6 +25,6 @@ binding = "MAIL_EML"
 bucket_name = "mail-eml"
 preview_bucket_name = "mail-eml"
 
-# Observability
-# [observability.logs]
-# enabled = true
+[observability.logs]
+enabled = false
+invocation_logs = true

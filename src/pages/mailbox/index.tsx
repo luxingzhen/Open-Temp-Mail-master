@@ -2,315 +2,226 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Trash2, RefreshCw, MailOpen, Mail, Search, KeyRound, Loader2, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
-import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { ChangePasswordDialog } from './ChangePasswordDialog';
+import EmailDetail from './EmailDetail';
 
 interface EmailSummary {
-    id: number;
-    sender: string;
-    subject: string;
-    preview: string;
-    received_at: string;
-    is_read?: boolean;
-    mailbox_address?: string; // For admin all-mailbox view
+  id: number;
+  sender: string;
+  subject: string;
+  preview?: string;
+  received_at: string;
+  is_read?: boolean;
+  mailbox_address?: string;
 }
 
 interface EmailDetail extends EmailSummary {
-    content?: string;
-    html_content?: string;
-    to_addrs: string;
-    download?: string;
+  content?: string;
+  html_content?: string;
+  to_addrs: string;
+  download?: string;
 }
 
 export default function Mailbox() {
-    const { user } = useAuth();
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const queryMailbox = searchParams.get('mailbox');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryMailbox = searchParams.get('mailbox');
+  const targetMailbox = queryMailbox || user?.mailboxAddress;
 
-    const targetMailbox = queryMailbox || user?.mailboxAddress;
+  const [emails, setEmails] = useState<EmailSummary[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState<EmailDetail | null>(null);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-    const [emails, setEmails] = useState<EmailSummary[]>([]);
-    const [selectedEmail, setSelectedEmail] = useState<EmailDetail | null>(null);
-    const [isLoadingList, setIsLoadingList] = useState(false);
-    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const fetchEmails = useCallback(async (silent = false) => {
+    const isAdminAllView = !targetMailbox && user?.role === 'admin';
+    if (!targetMailbox && !isAdminAllView) return;
 
-    // New features state
-    const [searchQuery, setSearchQuery] = useState('');
-    const [autoRefresh, setAutoRefresh] = useState(false);
-    const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+    if (!silent) setIsLoadingList(true);
+    try {
+      const endpoint = isAdminAllView
+        ? '/api/emails?limit=100&offset=0'
+        : `/api/emails?mailbox=${encodeURIComponent(targetMailbox!)}&limit=100&offset=0`;
 
-    const fetchEmails = useCallback(async (silent = false) => {
-        // Allow admin to fetch all emails when no mailbox specified
-        const isAdminAllView = !targetMailbox && user?.role === 'admin';
+      const response = await apiFetch<{ results?: EmailSummary[] } | EmailSummary[]>(endpoint);
+      if (Array.isArray(response)) setEmails(response);
+      else if (response?.results) setEmails(response.results);
+    } catch {
+      if (!silent) toast.error('加载邮件失败');
+    } finally {
+      if (!silent) setIsLoadingList(false);
+    }
+  }, [targetMailbox, user?.role]);
 
-        if (!targetMailbox && !isAdminAllView) return;
+  useEffect(() => {
+    const isAdminAllView = !targetMailbox && user?.role === 'admin';
+    if (targetMailbox || isAdminAllView) fetchEmails();
+  }, [fetchEmails, targetMailbox, user?.role]);
 
-        if (!silent) setIsLoadingList(true);
-        try {
-            let endpoint;
-            if (isAdminAllView) {
-                // Admin view: fetch all emails from all mailboxes
-                endpoint = `/api/emails?limit=100&offset=0`;
-            } else {
-                // Specific mailbox view
-                endpoint = `/api/emails?mailbox=${encodeURIComponent(targetMailbox!)}&limit=100&offset=0`;
-            }
-
-            const response = await apiFetch<{ results?: EmailSummary[] } | EmailSummary[]>(endpoint);
-
-            if (Array.isArray(response)) {
-                setEmails(response);
-            } else if (response && Array.isArray(response.results)) {
-                setEmails(response.results);
-            }
-        } catch (error) {
-            console.error('Failed to fetch emails', error);
-            if (!silent) toast.error('加载邮件失败');
-        } finally {
-            if (!silent) setIsLoadingList(false);
-        }
-    }, [targetMailbox, user?.role]);
-
-    useEffect(() => {
-        const isAdminAllView = !targetMailbox && user?.role === 'admin';
-        if (targetMailbox || isAdminAllView) {
-            fetchEmails();
-        }
-    }, [fetchEmails, targetMailbox, user?.role]);
-
-    // Auto-refresh logic
-    useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (autoRefresh) {
-            interval = setInterval(() => fetchEmails(true), 15000);
-        }
-        return () => clearInterval(interval);
-    }, [autoRefresh, fetchEmails]);
-
-    // Filter emails
-    const filteredEmails = useMemo(() => {
-        if (!searchQuery.trim()) return emails;
-        const query = searchQuery.toLowerCase();
-        return emails.filter(email =>
-            email.subject.toLowerCase().includes(query) ||
-            email.sender.toLowerCase().includes(query) ||
-            email.preview?.toLowerCase().includes(query)
-        );
-    }, [emails, searchQuery]);
-
-    const handleSelectEmail = async (id: number) => {
-        setIsLoadingDetail(true);
-        setSelectedEmail(null);
-        try {
-            const data = await apiFetch<EmailDetail>(`/api/email/${id}`);
-            if (data) {
-                // Mark as read in local state
-                setEmails(prev => prev.map(e => e.id === id ? { ...e, is_read: true } : e));
-                setSelectedEmail(data);
-            }
-        } catch {
-            toast.error('加载邮件内容失败');
-        } finally {
-            setIsLoadingDetail(false);
-        }
-    };
-
-    const handleDelete = async (e: React.MouseEvent, id: number) => {
-        e.stopPropagation();
-        if (!confirm('确定要删除这封邮件吗？')) return;
-
-        try {
-            await apiFetch(`/api/email/${id}`, { method: 'DELETE' });
-            toast.success('邮件已删除');
-            setEmails(emails.filter(em => em.id !== id));
-            if (selectedEmail?.id === id) setSelectedEmail(null);
-        } catch {
-            toast.error('删除邮件失败');
-        }
-    };
-
-    const handleReply = (email: EmailDetail) => {
-        navigate('/compose', {
-            state: {
-                to: email.sender,
-                subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
-                body: `\n\n\n--- Original Message ---\nFrom: ${email.sender}\nDate: ${new Date(email.received_at).toLocaleString()}\nSubject: ${email.subject}\n\n`
-            }
-        });
-    };
-
-    return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row p-4 gap-4">
-            {/* Email List */}
-            <Card className={cn("flex flex-col md:w-1/3 h-full", selectedEmail ? "hidden md:flex" : "flex")}>
-                <CardHeader className="p-4 border-b space-y-3">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">收件箱</CardTitle>
-                        <div className="flex gap-1">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsChangePasswordOpen(true)}
-                                title="修改密码"
-                            >
-                                <KeyRound className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => fetchEmails()}>
-                                <RefreshCw className={cn("h-4 w-4", isLoadingList && "animate-spin")} />
-                            </Button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="relative">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="搜索邮件..."
-                                className="pl-8 h-9"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{filteredEmails.length} 封邮件</span>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="auto-refresh"
-                                    checked={autoRefresh}
-                                    onCheckedChange={(c) => setAutoRefresh(!!c)}
-                                />
-                                <Label htmlFor="auto-refresh">自动刷新</Label>
-                            </div>
-                        </div>
-                    </div>
-                </CardHeader>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                    {filteredEmails.length === 0 && !isLoadingList && (
-                        <div className="text-center py-10 text-muted-foreground">
-                            <Mail className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                            <p>{searchQuery ? '未找到匹配的邮件' : '暂无邮件'}</p>
-                        </div>
-                    )}
-                    {filteredEmails.map((email) => (
-                        <div
-                            key={email.id}
-                            onClick={() => handleSelectEmail(email.id)}
-                            className={cn(
-                                "p-3 rounded-lg border cursor-pointer transition-colors hover:bg-accent relative group",
-                                selectedEmail?.id === email.id ? "bg-accent border-primary/50" : "bg-card",
-                                !email.is_read && "font-semibold bg-muted/30"
-                            )}
-                        >
-                            {!email.is_read && (
-                                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500" />
-                            )}
-                            <div className="flex justify-between items-start mb-1">
-                                <span className="truncate w-2/3">{email.sender}</span>
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
-                                </span>
-                            </div>
-                            {email.mailbox_address && (
-                                <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">
-                                    📬 {email.mailbox_address}
-                                </div>
-                            )}
-                            <div className="text-sm truncate mb-1">{email.subject}</div>
-                            <div className="text-xs text-muted-foreground line-clamp-2 font-normal">
-                                {email.preview}
-                            </div>
-                            <div className="mt-1 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                    onClick={(e) => handleDelete(e, email.id)}
-                                >
-                                    <Trash2 className="h-3 w-3" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </Card>
-
-            {/* Email Detail */}
-            <Card className={cn("flex-1 h-full flex flex-col", !selectedEmail ? "hidden md:flex" : "flex")}>
-                {isLoadingDetail ? (
-                    <div className="flex-1 flex items-center justify-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : !selectedEmail ? (
-                    <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                        <div className="text-center">
-                            <MailOpen className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                            <p>选择邮件以阅读</p>
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        <CardHeader className="p-4 border-b">
-                            <div className="flex items-start justify-between">
-                                <div className="space-y-1">
-                                    <CardTitle className="text-lg">{selectedEmail.subject}</CardTitle>
-                                    <div className="text-sm text-muted-foreground">
-                                        From: <span className="text-foreground select-text">{selectedEmail.sender}</span>
-                                    </div>
-                                    <div className="text-sm text-muted-foreground">
-                                        To: <span className="text-foreground select-text">{selectedEmail.to_addrs}</span>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                        {new Date(selectedEmail.received_at).toLocaleString()}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => handleReply(selectedEmail)}>
-                                        <div className="flex items-center">
-                                            <span className="mr-2">回复</span>
-                                            <Send className="h-3 w-3" />
-                                        </div>
-                                    </Button>
-                                    {selectedEmail.download && (
-                                        <Button variant="outline" size="sm" asChild>
-                                            <a href={selectedEmail.download} download>下载 EML</a>
-                                        </Button>
-                                    )}
-                                    <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSelectedEmail(null)}>
-                                        <span className="sr-only">返回</span>
-                                        X
-                                    </Button>
-                                    <Button variant="outline" size="icon" onClick={(e) => handleDelete(e, selectedEmail.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex-1 p-0 overflow-hidden relative">
-                            <div className="h-full w-full bg-white text-black p-4 overflow-auto select-text">
-                                {selectedEmail.html_content ? (
-                                    <div dangerouslySetInnerHTML={{ __html: selectedEmail.html_content }} className="prose max-w-none" />
-                                ) : (
-                                    <pre className="whitespace-pre-wrap font-sans">{selectedEmail.content}</pre>
-                                )}
-                            </div>
-                        </CardContent>
-                    </>
-                )}
-            </Card>
-
-            <ChangePasswordDialog
-                open={isChangePasswordOpen}
-                onOpenChange={setIsChangePasswordOpen}
-            />
-        </div>
+  const filteredEmails = useMemo(() => {
+    if (!searchQuery.trim()) return emails;
+    const q = searchQuery.toLowerCase();
+    return emails.filter(e =>
+      e.subject.toLowerCase().includes(q) ||
+      e.sender.toLowerCase().includes(q) ||
+      e.preview?.toLowerCase().includes(q)
     );
+  }, [emails, searchQuery]);
+
+  const handleSelectEmail = async (id: number) => {
+    setIsLoadingDetail(true);
+    setSelectedEmail(null);
+    try {
+      const data = await apiFetch<EmailDetail>(`/api/email/${id}`);
+      if (data) {
+        setEmails(prev => prev.map(e => e.id === id ? { ...e, is_read: true } : e));
+        setSelectedEmail(data);
+      }
+    } catch {
+      toast.error('加载邮件内容失败');
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm('确定要删除这封邮件吗？')) return;
+    try {
+      await apiFetch(`/api/email/${id}`, { method: 'DELETE' });
+      toast.success('邮件已删除');
+      setEmails(emails.filter(em => em.id !== id));
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+    } catch {
+      toast.error('删除邮件失败');
+    }
+  };
+
+  const handleReply = (email: EmailDetail) => {
+    navigate('/app/compose', {
+      state: {
+        to: email.sender,
+        subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
+        body: `\n\n\n--- Original Message ---\nFrom: ${email.sender}\nDate: ${new Date(email.received_at).toLocaleString()}\nSubject: ${email.subject}\n\n`
+      }
+    });
+  };
+
+  const handleNewEmail = () => {
+    window.location.href = '/';
+  };
+
+  const selected = selectedEmail;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-slate-950 to-black text-white">
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        {/* 顶部栏 */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">收件箱</h1>
+            {targetMailbox && (
+              <p className="text-zinc-400 text-sm mt-1">{targetMailbox}</p>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜索邮件..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 pl-10 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-400/50 w-48 transition-colors"
+              />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">🔍</span>
+            </div>
+            <button
+              onClick={() => fetchEmails()}
+              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-2xl transition-all text-sm flex items-center gap-2"
+            >
+              {isLoadingList ? '⟳' : '↻'} 刷新
+            </button>
+            <button
+              onClick={handleNewEmail}
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl transition-all text-sm font-medium hover:brightness-110"
+            >
+              ✨ 生成新邮箱
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 邮件列表 */}
+          <div className={`lg:col-span-5 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden h-fit max-h-[75vh] overflow-y-auto ${selected ? 'hidden lg:block' : ''}`}>
+            {filteredEmails.length === 0 && !isLoadingList && (
+              <div className="h-96 flex flex-col items-center justify-center text-zinc-400">
+                <div className="text-6xl mb-4 opacity-50">📭</div>
+                <p>暂无邮件</p>
+                <p className="text-sm mt-1">新邮件会自动出现在这里</p>
+              </div>
+            )}
+            {filteredEmails.map((mail) => (
+              <div
+                key={mail.id}
+                onClick={() => handleSelectEmail(mail.id)}
+                className={`group p-5 border-b border-white/10 hover:bg-white/5 cursor-pointer transition-all relative ${
+                  selected?.id === mail.id ? 'bg-white/10' : ''
+                } ${!mail.is_read ? 'border-l-2 border-l-blue-500' : ''}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="font-medium truncate flex-1">{mail.sender}</div>
+                  <div className="text-xs text-zinc-500 whitespace-nowrap ml-3">
+                    {formatDistanceToNow(new Date(mail.received_at), { addSuffix: true })}
+                  </div>
+                </div>
+                {mail.mailbox_address && (
+                  <div className="text-xs text-blue-400 mt-0.5">📬 {mail.mailbox_address}</div>
+                )}
+                <div className="font-semibold mt-1 text-sm truncate">{mail.subject}</div>
+                <div className="text-sm text-zinc-400 line-clamp-2 mt-0.5">{mail.preview}</div>
+                <button
+                  onClick={(e) => handleDelete(e, mail.id)}
+                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 hover:bg-white/10 w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-red-400 transition-all"
+                  title="删除"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+            {filteredEmails.length > 0 && (
+              <div className="p-4 text-center text-xs text-zinc-500 border-t border-white/5">
+                共 {filteredEmails.length} 封邮件
+              </div>
+            )}
+          </div>
+
+          {/* 邮件详情 */}
+          <div className={`lg:col-span-7 ${!selected ? 'hidden lg:block' : ''}`}>
+            {isLoadingDetail ? (
+              <div className="h-[70vh] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl flex items-center justify-center">
+                <div className="text-zinc-400 text-lg animate-pulse">加载中...</div>
+              </div>
+            ) : selected ? (
+              <EmailDetail
+                email={selected}
+                onReply={handleReply}
+                onDelete={handleDelete}
+                onClose={() => setSelectedEmail(null)}
+              />
+            ) : (
+              <div className="h-[70vh] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl flex items-center justify-center text-zinc-400">
+                <div className="text-center">
+                  <div className="text-7xl mb-6 opacity-30">✉️</div>
+                  <p className="text-xl">选择一封邮件查看</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -1,178 +1,153 @@
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Mail, Send, Shield, Zap, Globe, Lock, ArrowRight, Sparkles } from 'lucide-react';
-import { TempMailGenerator } from '@/pages/dashboard/TempMailGenerator';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
 
 export default function Home() {
-    const features = [
-        {
-            icon: Zap,
-            title: '极速部署',
-            desc: '基于 Cloudflare Workers 边缘网络，全球毫秒级响应，零冷启动延迟。'
-        },
-        {
-            icon: Shield,
-            title: '隐私优先',
-            desc: '完全匿名的一次性邮箱，无需注册即可使用，邮件读取后自动销毁。'
-        },
-        {
-            icon: Globe,
-            title: '多域名支持',
-            desc: '支持配置多个自定义域名，灵活切换，满足不同场景需求。'
-        },
-        {
-            icon: Lock,
-            title: '安全可控',
-            desc: '管理员可管理邮箱权限、设置转发规则、批量操作，企业级安全标准。'
-        },
-        {
-            icon: Send,
-            title: '邮件转发',
-            desc: '自动转发规则，将临时邮箱收到的邮件实时转发至真实邮箱。'
-        },
-        {
-            icon: Mail,
-            title: '完整邮箱功能',
-            desc: '支持收件、发件、回复、HTML 邮件渲染、附件下载、收藏标记等。'
-        }
-    ];
+  const [currentEmail, setCurrentEmail] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [domain] = useState('srfwq.top');
 
-    return (
-        <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-            {/* Hero Section */}
-            <section className="container max-w-6xl mx-auto px-4 py-20 md:py-32 text-center">
-                <div className="max-w-3xl mx-auto">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium mb-6">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                        </span>
-                        Open-Temp-Mail v1.0.0 正式发布
-                    </div>
-                    <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 bg-gradient-to-r from-foreground via-primary to-blue-600 bg-clip-text text-transparent">
-                        现代化临时邮箱服务
-                    </h1>
-                    <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-                        基于 React + Cloudflare Workers 构建，提供极速、私密、功能完整的一次性邮箱体验。
-                        支持自定义域名、邮件转发、批量管理，开箱即用。
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link to="/generate">
-                            <Button size="lg" className="gap-2 px-8 py-3 text-lg">
-                                <Mail className="h-5 w-5" />
-                                立即生成临时邮箱
-                                <ArrowRight className="h-5 w-5" />
-                            </Button>
-                        </Link>
-                        <Link to="/login">
-                            <Button size="lg" variant="outline" className="gap-2 px-8 py-3 text-lg">
-                                进入管理后台
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </section>
+  const generateEmail = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const random = Math.floor(Math.random() * 99999);
+      setCurrentEmail(`user${random}@${domain}`);
+      setIsGenerating(false);
+    }, 700);
+  };
 
-            {/* Generator Section - 无需登录，直接生成 */}
-            <section className="container max-w-4xl mx-auto px-4 py-8">
-                <Card className="border-primary/20 shadow-lg">
-                    <CardHeader className="text-center">
-                        <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-                            <Mail className="h-6 w-6 text-primary" />
-                            临时邮箱生成器
-                            <Sparkles className="h-5 w-5 text-primary" />
-                        </CardTitle>
-                        <CardDescription>
-                            无需登录 · 即时生成 · 立即可用 · 隐私保护
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <TempMailGenerator />
-                    </CardContent>
-                </Card>
-            </section>
+  const copyEmail = () => {
+    if (currentEmail) navigator.clipboard.writeText(currentEmail);
+  };
 
-            {/* Features Section */}
-            <section className="container max-w-6xl mx-auto px-4 py-16">
-                <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-4">核心功能</h2>
-                    <p className="text-muted-foreground text-lg">为开发者和隐私保护者设计的完整解决方案</p>
-                </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {features.map((feature, i) => (
-                        <div key={i} className="group p-6 bg-card border rounded-xl hover:border-primary/50 hover:shadow-lg transition-all duration-300">
-                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                                <feature.icon className="h-6 w-6 text-primary" />
-                            </div>
-                            <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                            <p className="text-muted-foreground">{feature.desc}</p>
-                        </div>
-                    ))}
-                </div>
-            </section>
+  return (
+    <div className="min-h-screen bg-[#0a0f1c] text-white">
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        {/* Header */}
+        <header className="flex justify-between items-center mb-12">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-xl">📧</div>
+            <div className="text-2xl font-bold">Open Temp Mail</div>
+          </div>
+          <div className="flex gap-4">
+            <a href="/app/dashboard">
+              <button className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-full text-sm">控制台</button>
+            </a>
+          </div>
+        </header>
 
-            {/* Tech Stack */}
-            <section className="py-16 bg-muted/30">
-                <div className="container max-w-6xl mx-auto px-4">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold mb-4">技术栈</h2>
-                        <p className="text-muted-foreground">现代化全栈架构，高性能、可扩展性、低维护成本</p>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                        <div className="p-4 bg-card border rounded-lg">
-                            <div className="text-3xl font-bold text-primary mb-1">React 19</div>
-                            <div className="text-sm text-muted-foreground">前端框架</div>
-                        </div>
-                        <div className="p-4 bg-card border rounded-lg">
-                            <div className="text-3xl font-bold text-primary mb-1">Cloudflare Workers</div>
-                            <div className="text-sm text-muted-foreground">边缘计算</div>
-                        </div>
-                        <div className="p-4 bg-card border rounded-lg">
-                            <div className="text-3xl font-bold text-primary mb-1">D1 + R2</div>
-                            <div className="text-sm text-muted-foreground">数据库 + 对象存储</div>
-                        </div>
-                        <div className="p-4 bg-card border rounded-lg">
-                            <div className="text-3xl font-bold text-primary mb-1">TypeScript + Vite</div>
-                            <div className="text-sm text-muted-foreground">类型安全 + 极速构建</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* CTA */}
-            <section className="container max-w-6xl mx-auto px-4 py-16">
-                <div className="bg-gradient-to-r from-primary to-blue-600 rounded-2xl p-8 md:p-12 text-center text-white">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-4">准备开始了吗？</h2>
-                    <p className="text-lg text-primary-100 mb-8 max-w-2xl mx-auto">
-                        无需注册，即刻生成临时邮箱。管理员可登录后台配置域名、管理用户、设置转发规则。
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link to="/generate">
-                            <Button size="lg" className="gap-2 px-8 py-3 text-lg bg-white text-primary hover:bg-primary-50">
-                                <Mail className="h-5 w-5" />
-                                免费生成临时邮箱
-                                <ArrowRight className="h-5 w-5" />
-                            </Button>
-                        </Link>
-                        <Link to="/login">
-                            <Button size="lg" variant="secondary" className="gap-2 px-8 py-3 text-lg border-white text-white hover:bg-white/10">
-                                管理员登录后台
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="border-t py-8 text-center text-muted-foreground text-sm">
-                <p>Open-Temp-Mail &copy; 2024 开源项目 · 基于 Cloudflare Workers 构建</p>
-                <p className="mt-2">
-                    <a href="https://github.com/Syntax-Error-1337/Open-Temp-Mail" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
-                        GitHub 开源地址
-                    </a>
-                </p>
-            </footer>
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 bg-emerald-900/60 text-emerald-400 px-6 py-2 rounded-full text-sm">
+            ● 实时可用 · 全球加速
+          </div>
         </div>
-    );
+
+        <h1 className="text-5xl font-bold text-center mb-4">临时邮箱 一键生成</h1>
+        <p className="text-center text-zinc-400 max-w-md mx-auto mb-12">
+          保护你的隐私，再也不怕垃圾邮件和信息泄露。安全、快速、免费的一次性邮箱服务。
+        </p>
+
+        {/* 生成区域 */}
+        <div className="max-w-xl mx-auto bg-zinc-900 border border-zinc-700 rounded-3xl p-10 mb-16">
+          <div className="flex justify-center mb-6">
+            <select className="bg-zinc-800 border border-zinc-700 rounded-2xl px-6 py-3 text-sm">
+              <option>{domain}</option>
+            </select>
+          </div>
+
+          <button
+            onClick={generateEmail}
+            disabled={isGenerating}
+            className="w-full py-6 text-xl font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all"
+          >
+            {isGenerating ? "生成中..." : "✨ 一键生成临时邮箱"}
+          </button>
+
+          {currentEmail && (
+            <div className="mt-8 flex gap-4 items-center bg-black/60 p-5 rounded-2xl border border-zinc-700">
+              <div className="flex-1 font-mono text-lg">{currentEmail}</div>
+              <button onClick={copyEmail} className="px-8 py-3 bg-white text-black rounded-xl hover:bg-gray-100">复制</button>
+            </div>
+          )}
+        </div>
+
+        {/* 收件箱 */}
+        <div className="mb-20">
+          <h2 className="text-2xl font-bold mb-6">收件箱</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-zinc-900/70 border border-zinc-700 rounded-3xl p-16 text-center">
+              <div className="mx-auto w-20 h-20 bg-zinc-800 rounded-2xl flex items-center justify-center mb-6 text-4xl">📬</div>
+              <p className="font-medium">暂无邮件</p>
+              <p className="text-sm text-zinc-400 mt-2">新邮件会自动出现在这里</p>
+            </div>
+            <div className="bg-zinc-900/70 border border-zinc-700 rounded-3xl p-16 text-center flex flex-col items-center justify-center">
+              <div className="text-6xl mb-6 opacity-40">✉️</div>
+              <p className="text-zinc-400">选择一封邮件查看</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 特性卡片 */}
+        <div className="grid md:grid-cols-3 gap-6 mb-20">
+          {[
+            { icon: "⚡", title: "即时可用", desc: "无需注册，点击即可生成" },
+            { icon: "🛡️", title: "隐私优先", desc: "不记录任何个人信息，自动销毁" },
+            { icon: "🌍", title: "全球加速", desc: "基于 Cloudflare 边缘网络" }
+          ].map((item, i) => (
+            <div key={i} className="bg-zinc-900/70 border border-zinc-700 rounded-3xl p-8 text-center">
+              <div className="text-5xl mb-4">{item.icon}</div>
+              <div className="font-semibold text-xl mb-2">{item.title}</div>
+              <div className="text-zinc-400">{item.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 新增内容：使用说明 + FAQ（提高AdSense友好度） */}
+        <div className="bg-zinc-900/70 border border-zinc-700 rounded-3xl p-12 mb-16">
+          <h2 className="text-3xl font-bold mb-8 text-center">如何使用临时邮箱？</h2>
+          <div className="grid md:grid-cols-2 gap-8 text-zinc-300">
+            <div>
+              <h3 className="font-semibold text-lg mb-4">1. 生成邮箱</h3>
+              <p>点击上方按钮即可获得一个临时邮箱地址，复制后即可使用。</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-4">2. 接收邮件</h3>
+              <p>在注册网站时使用该邮箱，邮件会实时显示在下方收件箱。</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-4">3. 安全隐私</h3>
+              <p>所有邮件在 24 小时后自动删除，不留任何记录。</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg mb-4">4. 合法用途</h3>
+              <p>本服务仅供保护隐私使用，禁止用于违法或有害行为。</p>
+            </div>
+          </div>
+        </div>
+
+        {/* FAQ */}
+        <div className="mb-20">
+          <h2 className="text-2xl font-bold mb-8 text-center">常见问题</h2>
+          <div className="space-y-6 max-w-3xl mx-auto">
+            {[
+              ["临时邮箱能用多久？", "通常 24 小时内自动清理，建议尽快使用。"],
+              ["会保存我的信息吗？", "完全匿名，不保存任何个人信息或邮件内容。"],
+              ["支持附件吗？", "支持查看图片和文本附件。"],
+              ["为什么需要临时邮箱？", "避免垃圾邮件、保护主邮箱隐私、快速注册各种服务。"]
+            ].map(([q, a], i) => (
+              <div key={i} className="bg-zinc-900/70 border border-zinc-700 rounded-3xl p-8">
+                <div className="font-semibold mb-3">Q: {q}</div>
+                <div className="text-zinc-400">A: {a}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer - 隐私政策 */}
+        <footer className="mt-24 text-center text-xs text-zinc-500 border-t border-zinc-800 pt-8">
+          © 2026 Open Temp Mail • 本站仅供合法隐私保护使用 • 
+          <a href="#" className="hover:text-zinc-300">隐私政策</a> • 
+          <a href="#" className="hover:text-zinc-300">服务条款</a>
+        </footer>
+      </div>
+    </div>
+  );
 }
