@@ -296,11 +296,20 @@ export async function authMiddleware(context) {
     return null;
   }
 
+  // Public API paths that don't require authentication
+  const publicApiPaths = ['/api/domains', '/api/generate'];
+  const isPublicPath = publicApiPaths.includes(url.pathname);
+  const isPublicEmailList = url.pathname === '/api/emails' && url.searchParams.has('mailbox');
+  const isPublicEmailDetail = url.pathname.startsWith('/api/email/') && request.method === 'GET';
+
+  if (isPublicPath || isPublicEmailList || isPublicEmailDetail) {
+    return null;
+  }
+
   try {
     const JWT_TOKEN = env.JWT_TOKEN || env.JWT_SECRET || '';
     if (!JWT_TOKEN) {
       console.warn('Authentication skipped: No JWT_TOKEN configured');
-      // decide if we should block or allow (as guest?) - for now let's block to be safe
        return new Response('Server Configuration Error: Missing Authorization Token', { status: 500 });
     }
 

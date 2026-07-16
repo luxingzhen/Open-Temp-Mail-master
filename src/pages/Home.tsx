@@ -27,7 +27,8 @@ export default function Home() {
   const { theme, toggle } = useTheme();
   const [currentEmail, setCurrentEmail] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [domain] = useState('srfwq.top');
+  const [domains, setDomains] = useState<string[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState('');
 
   const [emails, setEmails] = useState<EmailSummary[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<EmailDetail | null>(null);
@@ -36,15 +37,27 @@ export default function Home() {
   const pollingRef = useRef<number | null>(null);
 
   const isLoggedIn = !!user;
-  const targetMailbox = user?.mailboxAddress;
+  const targetMailbox = currentEmail || user?.mailboxAddress;
+
+  useEffect(() => {
+    apiFetch<string[]>('/api/domains').then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        setDomains(data);
+        setSelectedDomain(data[0]);
+      }
+    }).catch(() => {});
+  }, []);
 
   const generateEmail = () => {
+    if (!selectedDomain) return;
     setIsGenerating(true);
-    setTimeout(() => {
+    const idx = Math.max(0, domains.indexOf(selectedDomain));
+    apiFetch<{ email: string }>(`/api/generate?length=8&domainIndex=${idx}`).then(data => {
+      if (data?.email) setCurrentEmail(data.email);
+    }).catch(() => {
       const random = Math.floor(Math.random() * 99999);
-      setCurrentEmail(`user${random}@${domain}`);
-      setIsGenerating(false);
-    }, 700);
+      setCurrentEmail(`user${random}@${selectedDomain}`);
+    }).finally(() => setIsGenerating(false));
   };
 
   const copyEmail = () => {
@@ -52,7 +65,7 @@ export default function Home() {
   };
 
   const fetchEmails = useCallback(async (silent = false) => {
-    if (!isLoggedIn || !targetMailbox) return;
+    if (!targetMailbox) return;
     if (!silent) setIsLoadingList(true);
     try {
       const endpoint = `/api/emails?mailbox=${encodeURIComponent(targetMailbox)}&limit=50&offset=0`;
@@ -64,17 +77,17 @@ export default function Home() {
     } finally {
       if (!silent) setIsLoadingList(false);
     }
-  }, [isLoggedIn, targetMailbox]);
+  }, [targetMailbox]);
 
   useEffect(() => {
-    if (isLoggedIn && targetMailbox) {
+    if (targetMailbox) {
       fetchEmails();
-      pollingRef.current = window.setInterval(() => fetchEmails(true), 8000);
+      pollingRef.current = window.setInterval(() => fetchEmails(true), 5000);
     }
     return () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
-  }, [isLoggedIn, targetMailbox, fetchEmails]);
+  }, [targetMailbox, fetchEmails]);
 
   const handleSelectEmail = async (id: number) => {
     setIsLoadingDetail(true);
@@ -144,8 +157,8 @@ export default function Home() {
         {/* 生成区域 */}
         <div className="max-w-xl mx-auto bg-card border border-border rounded-3xl p-10 mb-16">
           <div className="flex justify-center mb-6">
-            <select className="bg-muted border border-border rounded-2xl px-6 py-3 text-sm focus:outline-none">
-              <option>{domain}</option>
+            <select value={selectedDomain} onChange={e => setSelectedDomain(e.target.value)} className="bg-muted border border-border rounded-2xl px-6 py-3 text-sm focus:outline-none">
+              {domains.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
@@ -169,10 +182,10 @@ export default function Home() {
         <div className="mb-20">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">收件箱</h2>
-            {isLoggedIn && targetMailbox && (
+            {targetMailbox && (
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                每 8 秒自动刷新
+                每 5 秒自动刷新
                 <button onClick={() => fetchEmails()} className="px-4 py-1.5 bg-muted hover:bg-accent rounded-full transition-colors cursor-pointer">
                   {isLoadingList ? '⟳' : '↻'}
                 </button>
@@ -180,7 +193,7 @@ export default function Home() {
             )}
           </div>
 
-          {isLoggedIn && targetMailbox ? (
+          {targetMailbox ? (
             <div className="bg-card border border-border rounded-3xl overflow-hidden">
               {emails.length === 0 ? (
                 <div className="p-16 text-center">
@@ -211,19 +224,10 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-3xl p-16 text-center">
-                <div className="mx-auto w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mb-6 text-4xl">📬</div>
-                <p className="font-medium">暂无邮件</p>
-                <p className="text-sm text-muted-foreground mt-2">新邮件会自动出现在这里</p>
-              </div>
-              <div className="bg-card border border-border rounded-3xl p-16 text-center flex flex-col items-center justify-center">
-                <div className="text-6xl mb-6 opacity-40">✉️</div>
-                <p className="text-muted-foreground">登录后查看邮件详情</p>
-                <a href="/login">
-                  <button className="mt-4 px-6 py-2 bg-muted hover:bg-accent rounded-full text-sm transition-colors cursor-pointer">立即登录</button>
-                </a>
-              </div>
+            <div className="bg-card border border-border rounded-3xl p-16 text-center">
+              <div className="mx-auto w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mb-6 text-4xl">📬</div>
+              <p className="font-medium">暂无邮件</p>
+              <p className="text-sm text-muted-foreground mt-2">先生成邮箱，邮件将自动显示</p>
             </div>
           )}
         </div>

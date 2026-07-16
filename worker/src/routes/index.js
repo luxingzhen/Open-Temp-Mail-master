@@ -247,8 +247,10 @@ async function delegateApiRequest(context) {
   const RESEND_API_KEY = env.RESEND_API_KEY || env.RESEND_TOKEN || env.RESEND || '';
   const ADMIN_NAME = String(env.ADMIN_NAME || 'admin').trim().toLowerCase();
 
+  const role = authPayload?.role || 'public';
+
   // 访客只允许读取模拟数据
-  if ((authPayload.role || 'admin') === 'guest') {
+  if (role === 'guest') {
     return handleApiRequest(request, DB, MAIL_DOMAINS, {
       mockOnly: true,
       resendApiKey: RESEND_API_KEY,
@@ -259,7 +261,7 @@ async function delegateApiRequest(context) {
   }
 
   // 邮箱用户只能访问自己的邮箱数据
-  if (authPayload.role === 'mailbox') {
+  if (role === 'mailbox') {
     return handleApiRequest(request, DB, MAIL_DOMAINS, {
       mockOnly: false,
       resendApiKey: RESEND_API_KEY,
@@ -267,6 +269,17 @@ async function delegateApiRequest(context) {
       r2: env.MAIL_EML,
       authPayload,
       mailboxOnly: true
+    });
+  }
+
+  // 公开用户（未登录）可以访问公开 API
+  if (role === 'public') {
+    return handleApiRequest(request, DB, MAIL_DOMAINS, {
+      mockOnly: false,
+      resendApiKey: RESEND_API_KEY,
+      adminName: ADMIN_NAME,
+      r2: env.MAIL_EML,
+      authPayload
     });
   }
 
