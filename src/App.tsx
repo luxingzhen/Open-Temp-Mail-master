@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/theme/ThemeContext';
 import Login from '@/pages/auth/Login';
 import Dashboard from '@/pages/dashboard';
 import Mailbox from '@/pages/mailbox';
@@ -13,6 +14,10 @@ import Layout from '@/components/layout/Layout';
 import Home from '@/pages/Home';
 import { Loader2 } from 'lucide-react';
 import TempMailGeneratorPage from '@/pages/Generate';
+import Privacy from '@/pages/Privacy';
+import Terms from '@/pages/Terms';
+import About from '@/pages/About';
+import Faq from '@/pages/Faq';
 
 const queryClient = new QueryClient();
 
@@ -74,6 +79,22 @@ const router = createBrowserRouter([
     path: "/login",
     element: <Login />,
   },
+  {
+    path: "/privacy",
+    element: <Privacy />,
+  },
+  {
+    path: "/terms",
+    element: <Terms />,
+  },
+  {
+    path: "/about",
+    element: <About />,
+  },
+  {
+    path: "/faq",
+    element: <Faq />,
+  },
   // Protected routes (auth required)
   {
     path: "/app",
@@ -114,12 +135,14 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <GlobalErrorBoundary>
+      <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <RouterProvider router={router} />
           <Toaster position="top-right" />
         </AuthProvider>
       </QueryClientProvider>
+      </ThemeProvider>
     </GlobalErrorBoundary>
   );
 }

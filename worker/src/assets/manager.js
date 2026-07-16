@@ -20,7 +20,11 @@ export class AssetManager {
       '/',
       '/generate',
       '/login',
-      '/login.html'
+      '/login.html',
+      '/privacy',
+      '/terms',
+      '/about',
+      '/faq'
     ]);
   }
 
@@ -36,6 +40,8 @@ export class AssetManager {
     if (pathname === '/generate') return true;
     // 登录页
     if (pathname === '/login' || pathname === '/login.html') return true;
+    // 静态信息页
+    if (pathname === '/privacy' || pathname === '/terms' || pathname === '/about' || pathname === '/faq') return true;
     return false;
   }
 
