@@ -297,7 +297,7 @@ export async function authMiddleware(context) {
   }
 
   // Public API paths that don't require authentication
-  const publicApiPaths = ['/api/domains', '/api/generate'];
+  const publicApiPaths = ['/api/domains', '/api/generate', '/api/create'];
   const isPublicPath = publicApiPaths.includes(url.pathname);
   const isPublicEmailList = url.pathname === '/api/emails' && url.searchParams.has('mailbox');
   const isPublicEmailDetail = url.pathname.startsWith('/api/email/') && request.method === 'GET';

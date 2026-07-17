@@ -29,6 +29,8 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [domains, setDomains] = useState<string[]>([]);
   const [selectedDomain, setSelectedDomain] = useState('');
+  const [customPrefix, setCustomPrefix] = useState('');
+  const [mode, setMode] = useState<'random' | 'custom'>('random');
 
   const [emails, setEmails] = useState<EmailSummary[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<EmailDetail | null>(null);
@@ -58,6 +60,25 @@ export default function Home() {
       const random = Math.floor(Math.random() * 99999);
       setCurrentEmail(`user${random}@${selectedDomain}`);
     }).finally(() => setIsGenerating(false));
+  };
+
+  const createCustomEmail = async () => {
+    const local = customPrefix.trim().toLowerCase();
+    if (!local) return toast.error('请输入邮箱前缀');
+    if (!/^[a-z0-9._-]{1,64}$/i.test(local)) return toast.error('前缀只允许字母、数字、._-');
+    setIsGenerating(true);
+    const idx = Math.max(0, domains.indexOf(selectedDomain));
+    try {
+      const data = await apiFetch<{ email: string }>('/api/create', {
+        method: 'POST',
+        body: JSON.stringify({ local, domainIndex: idx })
+      });
+      if (data?.email) setCurrentEmail(data.email);
+    } catch {
+      toast.error('创建失败，该地址可能已被使用');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const copyEmail = () => {
@@ -156,19 +177,35 @@ export default function Home() {
 
         {/* 生成区域 */}
         <div className="max-w-xl mx-auto bg-card border border-border rounded-3xl p-10 mb-16">
-          <div className="flex justify-center mb-6">
-            <select value={selectedDomain} onChange={e => setSelectedDomain(e.target.value)} className="bg-muted border border-border rounded-2xl px-6 py-3 text-sm focus:outline-none">
+          <div className="flex justify-center gap-3 mb-6">
+            <select value={selectedDomain} onChange={e => setSelectedDomain(e.target.value)} className="bg-muted border border-border rounded-2xl px-6 py-3 text-sm focus:outline-none flex-1">
               {domains.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
-          <button
-            onClick={generateEmail}
-            disabled={isGenerating}
-            className="w-full py-6 text-xl font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all cursor-pointer"
-          >
-            {isGenerating ? "生成中..." : "✨ 一键生成临时邮箱"}
-          </button>
+          <div className="flex justify-center gap-2 mb-6">
+            <button onClick={() => setMode('random')} className={`px-5 py-2 rounded-full text-sm transition-colors cursor-pointer ${mode === 'random' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-accent'}`}>随机生成</button>
+            <button onClick={() => setMode('custom')} className={`px-5 py-2 rounded-full text-sm transition-colors cursor-pointer ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-accent'}`}>自定义</button>
+          </div>
+
+          {mode === 'random' ? (
+            <button
+              onClick={generateEmail}
+              disabled={isGenerating}
+              className="w-full py-6 text-xl font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all cursor-pointer"
+            >
+              {isGenerating ? "生成中..." : "✨ 一键生成临时邮箱"}
+            </button>
+          ) : (
+            <div className="flex gap-3">
+              <input type="text" value={customPrefix} onChange={e => setCustomPrefix(e.target.value)} placeholder="输入邮箱前缀" maxLength={30}
+                className="flex-1 bg-muted border border-border rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-blue-500" />
+              <button onClick={createCustomEmail} disabled={isGenerating}
+                className="px-8 py-3 font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all cursor-pointer disabled:opacity-70">
+                {isGenerating ? "创建中" : "创建"}
+              </button>
+            </div>
+          )}
 
           {currentEmail && (
             <div className="mt-8 flex gap-4 items-center bg-card/80 p-5 rounded-2xl border border-border">
