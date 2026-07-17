@@ -22,6 +22,16 @@ interface EmailDetail extends EmailSummary {
   download?: string;
 }
 
+const SAVED_KEY = 'temp_mail_saved';
+
+function loadSaved(): string[] {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch { return []; }
+}
+
+function saveSaved(list: string[]) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(list));
+}
+
 export default function Home() {
   const { user } = useAuth();
   const { theme, toggle } = useTheme();
@@ -31,8 +41,10 @@ export default function Home() {
   const [selectedDomain, setSelectedDomain] = useState('');
   const [customPrefix, setCustomPrefix] = useState('');
   const [mode, setMode] = useState<'random' | 'custom'>('random');
+  const [savedEmails, setSavedEmails] = useState<string[]>(loadSaved);
+  const [showSaved, setShowSaved] = useState(false);
 
-  const [emails, setEmails] = useState<EmailSummary[]>([]);
+  const [mailList, setMailList] = useState<EmailSummary[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<EmailDetail | null>(null);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -50,15 +62,44 @@ export default function Home() {
     }).catch(() => {});
   }, []);
 
+  const addSaved = (email: string) => {
+    setSavedEmails(prev => {
+      if (prev.includes(email)) return prev;
+      const next = [email, ...prev];
+      saveSaved(next);
+      return next;
+    });
+  };
+
+  const removeSaved = (email: string) => {
+    setSavedEmails(prev => {
+      const next = prev.filter(e => e !== email);
+      saveSaved(next);
+      return next;
+    });
+    if (currentEmail === email) {
+      setCurrentEmail('');
+      setMailList([]);
+      setSelectedEmail(null);
+    }
+  };
+
+  const switchEmail = (email: string) => {
+    setCurrentEmail(email);
+    setSelectedEmail(null);
+  };
+
   const generateEmail = () => {
     if (!selectedDomain) return;
     setIsGenerating(true);
     const idx = Math.max(0, domains.indexOf(selectedDomain));
     apiFetch<{ email: string }>(`/api/generate?length=8&domainIndex=${idx}`).then(data => {
-      if (data?.email) setCurrentEmail(data.email);
+      if (data?.email) { setCurrentEmail(data.email); addSaved(data.email); }
     }).catch(() => {
       const random = Math.floor(Math.random() * 99999);
-      setCurrentEmail(`user${random}@${selectedDomain}`);
+      const email = `user${random}@${selectedDomain}`;
+      setCurrentEmail(email);
+      addSaved(email);
     }).finally(() => setIsGenerating(false));
   };
 
@@ -73,7 +114,7 @@ export default function Home() {
         method: 'POST',
         body: JSON.stringify({ local, domainIndex: idx })
       });
-      if (data?.email) setCurrentEmail(data.email);
+      if (data?.email) { setCurrentEmail(data.email); addSaved(data.email); }
     } catch {
       toast.error('创建失败，该地址可能已被使用');
     } finally {
@@ -91,8 +132,8 @@ export default function Home() {
     try {
       const endpoint = `/api/emails?mailbox=${encodeURIComponent(targetMailbox)}&limit=50&offset=0`;
       const response = await apiFetch<{ results?: EmailSummary[] } | EmailSummary[]>(endpoint);
-      if (Array.isArray(response)) setEmails(response);
-      else if (response?.results) setEmails(response.results);
+      if (Array.isArray(response)) setMailList(response);
+      else if (response?.results) setMailList(response.results);
     } catch {
       if (!silent) toast.error('加载邮件失败');
     } finally {
@@ -116,7 +157,7 @@ export default function Home() {
     try {
       const data = await apiFetch<EmailDetail>(`/api/email/${id}`);
       if (data) {
-        setEmails(prev => prev.map(e => e.id === id ? { ...e, is_read: true } : e));
+        setMailList(prev => prev.map(e => e.id === id ? { ...e, is_read: true } : e));
         setSelectedEmail(data);
       }
     } catch {
@@ -132,7 +173,7 @@ export default function Home() {
     try {
       await apiFetch(`/api/email/${id}`, { method: 'DELETE' });
       toast.success('邮件已删除');
-      setEmails(emails.filter(em => em.id !== id));
+      setMailList(mailList.filter(em => em.id !== id));
       if (selectedEmail?.id === id) setSelectedEmail(null);
     } catch {
       toast.error('删除邮件失败');
@@ -176,7 +217,7 @@ export default function Home() {
         </p>
 
         {/* 生成区域 */}
-        <div className="max-w-xl mx-auto bg-card border border-border rounded-3xl p-10 mb-16">
+        <div className="max-w-xl mx-auto bg-card border border-border rounded-3xl p-10 mb-6">
           <div className="flex justify-center gap-3 mb-6">
             <select value={selectedDomain} onChange={e => setSelectedDomain(e.target.value)} className="bg-muted border border-border rounded-2xl px-6 py-3 text-sm focus:outline-none flex-1">
               {domains.map(d => <option key={d} value={d}>{d}</option>)}
@@ -189,11 +230,7 @@ export default function Home() {
           </div>
 
           {mode === 'random' ? (
-            <button
-              onClick={generateEmail}
-              disabled={isGenerating}
-              className="w-full py-6 text-xl font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all cursor-pointer"
-            >
+            <button onClick={generateEmail} disabled={isGenerating} className="w-full py-6 text-xl font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl hover:brightness-110 transition-all cursor-pointer">
               {isGenerating ? "生成中..." : "✨ 一键生成临时邮箱"}
             </button>
           ) : (
@@ -208,12 +245,36 @@ export default function Home() {
           )}
 
           {currentEmail && (
-            <div className="mt-8 flex gap-4 items-center bg-card/80 p-5 rounded-2xl border border-border">
-              <div className="flex-1 font-mono text-lg">{currentEmail}</div>
-              <button onClick={copyEmail} className="px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:brightness-110 transition-all cursor-pointer">复制</button>
+            <div className="mt-6 flex gap-4 items-center bg-card/80 p-5 rounded-2xl border border-border">
+              <div className="flex-1 font-mono text-lg break-all">{currentEmail}</div>
+              <button onClick={copyEmail} className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:brightness-110 transition-all cursor-pointer whitespace-nowrap">复制</button>
             </div>
           )}
         </div>
+
+        {/* 已保存邮箱列表 */}
+        {savedEmails.length > 0 && (
+          <div className="max-w-xl mx-auto mb-16">
+            <button onClick={() => setShowSaved(!showSaved)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3 cursor-pointer">
+              {showSaved ? '▼' : '▶'} 已保存邮箱 ({savedEmails.length})
+            </button>
+            {showSaved && (
+              <div className="bg-card border border-border rounded-3xl overflow-hidden">
+                {savedEmails.map((email) => (
+                  <div key={email} className={`flex items-center gap-3 p-4 border-b border-border last:border-b-0 ${email === currentEmail ? 'bg-accent' : 'hover:bg-accent'}`}>
+                    <button onClick={() => switchEmail(email)} className="flex-1 text-left font-mono text-sm truncate cursor-pointer">
+                      {email}
+                    </button>
+                    {email !== currentEmail && (
+                      <button onClick={() => switchEmail(email)} className="px-4 py-1.5 bg-muted hover:bg-blue-600 hover:text-white rounded-full text-xs transition-all cursor-pointer">切换</button>
+                    )}
+                    <button onClick={() => removeSaved(email)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-white/10 transition-all cursor-pointer">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 收件箱 */}
         <div className="mb-20">
@@ -232,7 +293,7 @@ export default function Home() {
 
           {targetMailbox ? (
             <div className="bg-card border border-border rounded-3xl overflow-hidden">
-              {emails.length === 0 ? (
+              {mailList.length === 0 ? (
                 <div className="p-16 text-center">
                   <div className="mx-auto w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mb-6 text-4xl">📬</div>
                   <p className="font-medium">暂无邮件</p>
@@ -240,7 +301,7 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {emails.map(mail => (
+                  {mailList.map(mail => (
                     <div key={mail.id} onClick={() => handleSelectEmail(mail.id)}
                       className={`p-5 hover:bg-accent cursor-pointer transition-colors flex items-start gap-4 ${selectedEmail?.id === mail.id ? 'bg-accent' : ''} ${!mail.is_read ? 'border-l-2 border-l-blue-500' : ''}`}>
                       <div className="flex-1 min-w-0">
